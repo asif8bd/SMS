@@ -1,8 +1,9 @@
-package com.sms.send;
+package com.ibcs.sms;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Properties;
 
 public class SMSProperties {
@@ -38,7 +39,23 @@ public class SMSProperties {
 		
 	}
 	public static void main(String[] args) {
-		System.out.println(256>>8);
-		
+		//5659536869304750
+		String hexKey="00141b519cb029ae";
+		int[] newKeyArray = new int[8];
+
+	      for(int i = 0; i < 8; ++i) {
+	         newKeyArray[i] = 255 & Integer.parseInt(hexKey.substring(i * 2, i * 2 + 2), 16);
+	         
+	      }
+	      System.out.println(Arrays.toString(newKeyArray));
+	      int[] dkey = new int[8];
+	      for(int souceHex = 0; souceHex < 8; ++souceHex) {
+	          dkey[souceHex] = newKeyArray[7 - souceHex];
+	       }
+	      System.out.println(Arrays.toString(dkey));
+	      String abc="0123abcABC";
+	      System.out.println(Arrays.toString(abc.getBytes()));
+	      int[] nums=new int[20];
+	      System.out.println(Arrays.toString(nums));
 	}
 }

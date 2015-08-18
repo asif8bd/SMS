@@ -1,10 +1,13 @@
-package com.sms.send;
+package com.ibcs.sms;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+
+import javax.swing.text.StyledEditorKit.BoldAction;
+
 import org.apache.log4j.Logger;
 import org.smslib.OutboundMessage;
 import org.smslib.Service;
@@ -27,6 +30,7 @@ public class SendSMS {
 	ResultSet rs1;
 	ResultSet rs2;
 	ResultSet rs3;
+	ResultSet rs4;
 
 	public void myDriver() {
 
@@ -71,6 +75,7 @@ public class SendSMS {
 	}
 
 	public void doIt() throws Exception {
+
 		SerialModemGateway gateway = new SerialModemGateway("id", port,
 				boudRate, mfr, model);
 		gateway.setInbound(true);
@@ -105,10 +110,10 @@ public class SendSMS {
 							stm.executeUpdate(query4);
 
 						} else if (!mobileNumber.equals("pappu")) {
-							// mobile !=pappu
+
 							if (mobileNumber.length() == 11) {
 								if (mobileNumber.matches("[0-9]+")) {
-									// checking vaild digit in mobile no
+									// checking valid digit in mobile no
 									String query2 = "select  distinct meterno as meterno from Order_token where ordersid='"
 											+ orderId + "'";
 									rs2 = stm.executeQuery(query2);
@@ -126,29 +131,59 @@ public class SendSMS {
 													.getString("token"));
 										}
 										rs3.close();
-										OutboundMessage msg = new OutboundMessage(
-												mobileNumber, "Meter no:\n"
-														+ meterNo
-														+ "\nTokens:\n"
-														+ tokenNumber
-														+ "\nFrom: " + utilty);
-										Service.getInstance().sendMessage(msg);
-										String query4 = "update ORDER_MASTER_STATUS set status='1' where ORDERSID='"
-												+ orderId + "'";
 
-										stm.executeUpdate(query4);
-										smsCounter++;
-										logger.info("Message sent("
-												+ smsCounter + ") to: "
-												+ mobileNumber + " Meter no: "
-												+ meterNo + " Token:"
-												+ tokenNumber + " From: "
-												+ utilty);
-										Thread.sleep(1000);
+										// Added code to stop customization SMS
+										String meterCustomization = "";
+										String queryCustomization = "select hh from da_bj where bjjh='"
+												+ meterNo
+												+ "' and to_char(ZCRQ, 'yyyy-mm-dd')=(select to_char(op_time, 'yyyy-mm-dd') from order_master where ordersid='"
+												+ orderId + "')";
+										rs4 = stm
+												.executeQuery(queryCustomization);
+										while (rs4.next()) {
+											meterCustomization = rs4
+													.getString("hh");
+										}
+										rs4.close();
+
+										if (meterCustomization
+												.equals(accountNo)) {
+											String query6 = "update ORDER_MASTER_STATUS set status='0' where ORDERSID='"
+													+ orderId + "'";
+											stm.executeUpdate(query6);
+											logger.info("Token not sent due to meter("
+													+ meterNo
+													+ ") customization.");
+
+										} else {
+
+											OutboundMessage msg = new OutboundMessage(
+													mobileNumber, "Meter no:\n"
+															+ meterNo
+															+ "\nTokens:\n"
+															+ tokenNumber
+															+ "\nFrom: "
+															+ utilty);
+											Service.getInstance().sendMessage(
+													msg);
+
+											String query4 = "update ORDER_MASTER_STATUS set status='1' where ORDERSID='"
+													+ orderId + "'";
+
+											stm.executeUpdate(query4);
+											smsCounter++;
+											logger.info("Message sent("
+													+ smsCounter + ") to: "
+													+ mobileNumber
+													+ " Meter no: " + meterNo
+													+ " Token:" + tokenNumber
+													+ " From: " + utilty);
+											Thread.sleep(1000);
+										}
 									}
 									rs2.close();
 								} else {
-									// status update without sms send
+									// status update without SMS send
 
 									String query4 = "update ORDER_MASTER_STATUS set status='3' where ORDERSID='"
 											+ orderId + "'";
@@ -157,7 +192,7 @@ public class SendSMS {
 								}
 
 							} else {
-								// status update without sms send
+								// status update without SMS send
 
 								String query4 = "update ORDER_MASTER_STATUS set status='3' where ORDERSID='"
 										+ orderId + "'";
