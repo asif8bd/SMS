@@ -141,19 +141,7 @@ class ReadMessages {
 		}
 	}
 
-	public static void main(String[] a) throws Exception {
-
-		ReadMessages app = new ReadMessages();
-
-		try {
-			// app.doIt();
-
-		} catch (Exception e) {
-			logger.error(e);
-		}
-		
-		// Testing how to send data via HTTP post method
-
+	public void sendPostRequest() {
 		try {
 
 			// String url = "https://selfsolve.apple.com/wcResults.do";
@@ -200,5 +188,22 @@ class ReadMessages {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public static void main(String[] a) throws Exception {
+
+		ReadMessages app = new ReadMessages();
+
+		try {
+			//send data via HTTP post method
+			app.sendPostRequest();
+			
+			//Read all SMS from inbox and send Token 
+			// app.doIt();
+
+		} catch (Exception e) {
+			logger.error(e);
+		}
+
 	}
 }
