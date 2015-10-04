@@ -6,8 +6,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import javax.swing.text.StyledEditorKit.BoldAction;
-
 import org.apache.log4j.Logger;
 import org.smslib.OutboundMessage;
 import org.smslib.Service;

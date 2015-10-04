@@ -7,7 +7,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.rmi.RemoteException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -17,15 +16,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.smslib.AGateway;
 import org.smslib.AGateway.Protocols;
+import org.smslib.GatewayException;
+import org.smslib.IInboundMessageNotification;
 import org.smslib.InboundMessage;
+import org.smslib.OutboundMessage;
 import org.smslib.InboundMessage.MessageClasses;
+import org.smslib.Message.MessageTypes;
 import org.smslib.Service;
+import org.smslib.TimeoutException;
 import org.smslib.modem.SerialModemGateway;
 
-import cn.hexing.prepay.web.action.vending.SmsServiceActionProxy;
-
-class ReadMessages {
+class ReadMessagesOld {
 	static Logger logger = Logger.getLogger(ReadMessages.class.getName());
 	static List<InboundMessage> msgList = new ArrayList<InboundMessage>();
 
@@ -53,46 +56,28 @@ class ReadMessages {
 		}
 	}
 
-	public boolean isMeterAndAmountValid(String meterNo, String vendingAmount) {
-		if (meterNo.matches("[0-9]+")) {
-			if (meterNo.length() == 12) {
-				if (vendingAmount.matches("[0-9]+")
-						&& vendingAmount.length() < 5
-						&& Integer.parseInt(vendingAmount) < 2001
-						&& Integer.parseInt(vendingAmount) > 99) {
-					return true;
-				} else {
-					logger.info("Invalid amount: " + vendingAmount);
-					return false;
-				}
-			} else {
-				logger.info("Meter no must be : " + meterNo);
-				return false;
-			}
-		} else {
-			logger.info("Invalid meter no: " + meterNo);
-			return false;
-		}
-	}
-
 	public boolean isMeterTaggedWithMobile(String mobileNo, String meterNo) {
+
 		if (meterNo.length() != 12) {
 			return false;
 		}
+
 		String query = "select sjhm from da_yhlxr where hh=(select hh from da_bj where bjjh='"
 				+ meterNo + "')";
+
 		try {
 			stm = con.createStatement();
 			rs = stm.executeQuery(query);
 			String db_mobileNo = "";
-
 			while (rs.next()) {
 				db_mobileNo = rs.getString("sjhm").trim();
 			}
 			rs.close();
 
 			if (mobileNo.equals("88" + db_mobileNo)) {
-				logger.info("Mobile matched " + mobileNo);
+
+				// logger.info("Mobile matched " + mobileNo);
+
 				return true;
 
 			} else {
@@ -102,67 +87,111 @@ class ReadMessages {
 			logger.error(e);
 			return false;
 		}
+
+	}
+
+	public class InboundNotification implements IInboundMessageNotification {
+
+		@Override
+		public void process(AGateway gateway, MessageTypes msgType,
+				InboundMessage msg) {
+			if (msgType == MessageTypes.INBOUND) {
+				System.out
+						.println(">>> New	Inbound message detected from Gateway: "
+								+ gateway.getGatewayId());
+			} else if (msgType == MessageTypes.STATUSREPORT) {
+				System.out
+						.println(">>> New Inbound Status Report message detected 	from Gateway: "
+								+ gateway.getGatewayId());
+			}
+			System.out.println("From: "+msg.getOriginator());
+			System.out.println("Text: "+msg.getText());
+			System.out.println("---------------------");
+			//"01745221760"
+			OutboundMessage out = new OutboundMessage(msg.getOriginator(),"Tnx for RND");
+			out.setFrom("USA");
+			
+			
+			try {
+				Service.getInstance().sendMessage(out);
+				Service.getInstance().deleteMessage(msg);
+			} catch (TimeoutException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (GatewayException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 	}
 
 	public void doIt() throws Exception {
 		SerialModemGateway gateway = new SerialModemGateway("ibcs", port,
 				boudRate, mfr, model);
+		InboundNotification inboundNotification = new InboundNotification();
 		gateway.setInbound(true);
 		gateway.setOutbound(true);
 		gateway.setProtocol(Protocols.PDU);
 		gateway.getATHandler().setStorageLocations("SM");
 		Service.getInstance().addGateway(gateway);
+		Service.getInstance().setInboundMessageNotification(inboundNotification);
 		Service.getInstance().startService();
-
-		SmsServiceActionProxy sm = new SmsServiceActionProxy();
-		while (true) {
+		
+		/*
+		// SmsServiceActionProxy sm = new SmsServiceActionProxy();
+		while (port.equals("abc")) {//true
 			Service.getInstance().readMessages(msgList, MessageClasses.ALL);
 			myDriver();
 			for (InboundMessage msg : msgList) {
 				String sender = msg.getOriginator();
 				String text_msg = msg.getText();
 				text_msg = text_msg.trim().replaceAll(" +", " ");
-				logger.info("\nFrom: " + sender);
-				logger.info("Text: " + text_msg);
-				String[] wordsList = text_msg.split(" ");
+				System.out.println("\nFrom: " + sender);
+				System.out.println("Text: " + text_msg);
 
-				String meterNo = wordsList[0];
-				String vendingAmount = wordsList[1];
-				if (meterNo.length()== 11) {
-					meterNo="0"+meterNo;
+				String[] test = text_msg.split(" ");
+				for (int i = 0; i < test.length; i++) {
+					// System.out.println(test[i]);
 				}
-				if (isMeterAndAmountValid(meterNo, vendingAmount)) {
 
-					if (isMeterTaggedWithMobile(sender, meterNo)) {
-						
-						String token;
-						try {
-							token = sm.getToken(meterNo, vendingAmount);
-							logger.info("Congrats! Mobile no: " + sender
-									+ " is registerd with Meter: " + meterNo
-									+ ". Token: " + token);
-						} catch (RemoteException e) {
-							// TODO Auto-generated catch block
-							logger.warn("RmExp " + e);
-						} catch (Exception e) {
-							// TODO Auto-generated catch block
-							logger.warn("Exp " + e);
-						}
-					} else {
-						System.out.println("Sorry!!! Mobile no: " + sender
-								+ " is not registerd with Meter: " + meterNo);
+				String meterNo = test[0];
+
+				if (meterNo.matches("[0-9]+")) {
+					if (meterNo.length() == 11) {
+						meterNo = "0" + meterNo;
 					}
 				} else {
-					logger.warn("MeterNo and vendingAmount is not valid.");
+
+					meterNo = "";
+					System.out.println("Skipping other sms....");
+					continue;
 				}
-				Service.getInstance().deleteMessage(msg);
+				if (isMeterTaggedWithMobile(sender, meterNo)) {
+					System.out.println("Congrats! Mobile no: " + sender
+							+ " is registerd with Meter: " + meterNo
+							+ ". Wait for token.");
+				} else {
+					System.out.println("Sorry!!! Mobile no: " + sender
+							+ " is not registerd with Meter: " + meterNo);
+				}
+				// if(test[0].length()<)
+				// String Token= sm.getToken(test[0], test[1]);
+				// System.out.println(Token);
+				// Service.getInstance().deleteMessage(msg);
 			}
 			msgList.clear();
-			System.out.println("");
+			System.out.println("============================");
 			Thread.sleep(5000);
 		}
+		*/
 	}
-
+/*
 	public void sendPostRequest() {
 		try {
 
@@ -213,14 +242,17 @@ class ReadMessages {
 			e.printStackTrace();
 		}
 	}
-
+*/
 	public static void main(String[] a) throws Exception {
 
-		ReadMessages app = new ReadMessages();
+		ReadMessagesOld app = new ReadMessagesOld();
 
 		try {
+			// send data via HTTP post method
+			//app.sendPostRequest();
+
 			// Read all SMS from inbox and send Token
-			app.doIt();
+			 app.doIt();
 
 		} catch (Exception e) {
 			logger.error(e);
